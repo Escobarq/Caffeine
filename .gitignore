@@ -17,7 +17,6 @@ build/
 gradle-app.setting
 !gradle-wrapper.jar
 !gradle-wrapper.properties
-*.jar
 *.war
 *.ear
 *.class
@@ -26,4 +25,11 @@ gradle-app.setting
 *.iml
 *.ipr
 *.iws
+
+# JCEF - Binarios de Chromium (se descargan automáticamente)
 jcef-bundle/
+**/jcef-bundle/
+
+# JARs compilados (excepto gradle-wrapper.jar que ya está permitido arriba)
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
