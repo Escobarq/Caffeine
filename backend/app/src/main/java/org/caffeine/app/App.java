@@ -15,36 +15,57 @@ public class App {
     public static void main(String[] args) {
         CefAppBuilder builder = new CefAppBuilder();
 
-        builder.setInstallDir(new File("jcef-bundle")); // default
-        builder.setProgressHandler(new ConsoleProgressHandler()); // default
-        builder.addJcefArgs("--disable-gpu"); // ejemplo
-        builder.getCefSettings().windowless_rendering_enabled = false; // Cambiado a false para mostrar la ventana
+        // Configurar el directorio donde se instalarán los binarios de Chromium
+        builder.setInstallDir(new File("jcef-bundle"));
+        builder.setProgressHandler(new ConsoleProgressHandler());
 
-        // Set an app handler. Do not use CefApp.addAppHandler(...), it may break on
-        // macOS!
+        // Argumentos para optimizar JCEF
+        builder.addJcefArgs("--disable-gpu");
+
+        // Configuración de CEF
+        builder.getCefSettings().windowless_rendering_enabled = false;
+
+        // Configurar el manejador de la aplicación
         builder.setAppHandler(new MavenCefAppHandlerAdapter() {
-            // Override handler methods here if needed
+            // Aquí puedes agregar manejadores personalizados si los necesitas
         });
 
-        // Build a CefApp instance using the configuration above
         CefApp app = null;
         try {
+            // Construir la aplicación CEF
             app = builder.build();
 
-            // --- Nuevo código para crear y mostrar la ventana del navegador ---
-            JFrame frame = new JFrame("Caffeine Browser");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.setSize(800, 600);
-            // Crear un CefClient
+            JFrame frame = new JFrame("Caffeine Framework");
+            frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+            frame.setSize(1200, 800);
+            frame.setLocationRelativeTo(null);
+
+            // Crear el cliente y el navegador
             CefClient client = app.createClient();
+            CefBrowser browser = client.createBrowser(
+                    "file:///home/juan/Escritorio/Caffeine/frontend/index.html",
+                    false,
+                    false);
 
-            // Almacenar el CefBrowser en una variable, usando el CefClient
-            CefBrowser browser = client.createBrowser("file:///home/juan/Escritorio/Caffeine/frontend/index.html",
-                    false, false);
+            // Agregar el navegador a la ventana
             frame.getContentPane().add(browser.getUIComponent(), BorderLayout.CENTER);
-            frame.setVisible(true);
 
+            // Manejar el cierre de la ventana correctamente
+            final CefApp finalApp = app;
+            frame.addWindowListener(new java.awt.event.WindowAdapter() {
+                @Override
+                public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+                    browser.close(true);
+                    finalApp.dispose();
+                    frame.dispose();
+                    System.exit(0);
+                }
+            });
+
+            // Mostrar la ventana
+            frame.setVisible(true);
         } catch (Exception e) {
+            System.err.println("Error al iniciar la aplicación:");
             e.printStackTrace();
             System.exit(1);
         }
