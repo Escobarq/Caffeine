@@ -1,0 +1,30 @@
+# Template .gitignore
+# Este archivo está en el template - se copia a nuevos proyectos
+
+# Caffeine Build
+dist/
+dist-native/
+caffeine-build/
+
+# Node
+node_modules/
+package-lock.json
+
+# Gradle (src-caffeine)
+src-caffeine/build/
+src-caffeine/.gradle/
+src-caffeine/*.jar
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

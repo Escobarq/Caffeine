@@ -1,0 +1,172 @@
+:root {
+  --bg: #0f172a;
+  --card: #0b1220;
+  --accent: #06b6d4;
+  --muted: #94a3b8;
+  --btn-bg: #0ea5a1;
+  --btn-hover: #08979a;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, var(--bg), #071126 80%);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, sans-serif;
+  color: #e6eef8;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem;
+  flex: 1;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 3rem;
+  padding-bottom: 2rem;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  color: #06b6d4;
+}
+
+.subtitle {
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+main {
+  display: grid;
+  gap: 2rem;
+}
+
+.card {
+  background: linear-gradient(180deg, var(--card), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(2, 6, 23, 0.6);
+}
+
+.card h2 {
+  margin-bottom: 1rem;
+  color: var(--accent);
+}
+
+.card p,
+.card ol {
+  line-height: 1.6;
+  color: rgba(230, 238, 248, 0.8);
+}
+
+.card ol {
+  padding-left: 2rem;
+}
+
+.card ol li {
+  margin-bottom: 0.5rem;
+}
+
+.card code {
+  background: rgba(6, 182, 212, 0.2);
+  color: var(--accent);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-family: "Courier New", monospace;
+}
+
+.counter {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.btn {
+  background: var(--btn-bg);
+  border: none;
+  color: #062023;
+  font-weight: 700;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.25rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 6px 18px rgba(6, 22, 32, 0.45);
+}
+
+.btn:hover {
+  background: var(--btn-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(6, 22, 32, 0.6);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn:focus {
+  outline: 3px solid rgba(6, 182, 212, 0.2);
+  outline-offset: 3px;
+}
+
+.count-display {
+  min-width: 4.5rem;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent);
+  display: inline-block;
+}
+
+footer {
+  text-align: center;
+  padding: 2rem;
+  border-top: 2px solid rgba(255, 255, 255, 0.1);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  header h1 {
+    font-size: 1.8rem;
+  }
+
+  .container {
+    padding: 1rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .btn {
+    width: 42px;
+    height: 42px;
+    font-size: 1rem;
+  }
+
+  .count-display {
+    font-size: 1.25rem;
+  }
+}
