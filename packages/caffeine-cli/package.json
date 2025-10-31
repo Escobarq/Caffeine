@@ -1,0 +1,35 @@
+{
+  "name": "caffeine-cli",
+  "version": "1.0.0",
+  "description": "Build desktop applications with Java 21 + JavaFX + HTML/CSS/JavaScript",
+  "main": "index.js",
+  "bin": {
+    "caffeine": "./index.js"
+  },
+  "preferGlobal": true,
+  "scripts": {
+    "test": "echo \"No tests configured yet\" && exit 0"
+  },
+  "keywords": [
+    "desktop",
+    "java",
+    "javafx",
+    "electron",
+    "tauri",
+    "cli",
+    "framework"
+  ],
+  "author": "Juan Escobar <jdescobar180@soy.sena.edu.co>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Escobarq/Caffeine.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Escobarq/Caffeine/issues"
+  },
+  "homepage": "https://github.com/Escobarq/Caffeine#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
