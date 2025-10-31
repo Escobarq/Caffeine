@@ -3,6 +3,7 @@
 ## Overview
 
 Caffeine is a **hybrid framework** combining:
+
 - **Backend**: Java 21 + JavaFX 21
 - **Frontend**: HTML5 + CSS3 + JavaScript
 - **Packaging**: Gradle + jpackage
@@ -77,21 +78,23 @@ caffeine/
 
 ## Technologies
 
-| Component | Version | Purpose |
-|-----------|---------|---------|
-| Java | 21+ | Backend language |
-| JavaFX | 21 | GUI framework |
-| Gradle | 9.2.0 | Build system |
-| jpackage | JDK 14+ | Native packaging |
-| Node.js | 16+ | CLI runtime |
+| Component | Version | Purpose          |
+| --------- | ------- | ---------------- |
+| Java      | 21+     | Backend language |
+| JavaFX    | 21      | GUI framework    |
+| Gradle    | 9.2.0   | Build system     |
+| jpackage  | JDK 14+ | Native packaging |
+| Node.js   | 16+     | CLI runtime      |
 
 ## Modes
 
 1. **Development**: `caffeine dev frontend`
+
    - Loads HTML from filesystem
    - Hot-reload on changes
 
 2. **Production**: `npm run build`
+
    - Embeds frontend in JAR
    - Generates native executable
 
