@@ -10,6 +10,7 @@ import java.net.URL;
 /**
  * App - Main JavaFX Application
  * Loads HTML/CSS/JS frontend and displays it in a WebView
+ * Supports both local files and HTTP URLs (for development with hot-reload)
  */
 public class App extends Application {
     private static String frontendPath;
@@ -29,13 +30,19 @@ public class App extends Application {
         String url;
 
         if (frontendPath != null && !frontendPath.isEmpty()) {
-            // Development mode - load from file system
-            File frontendFile = new File(frontendPath, "index.html");
-            if (frontendFile.exists()) {
-                url = frontendFile.toURI().toString();
+            // Check if it's a URL (HTTP)
+            if (frontendPath.startsWith("http://") || frontendPath.startsWith("https://")) {
+                url = frontendPath;
                 System.out.println("Loading frontend from: " + url);
             } else {
-                url = new File(frontendPath).toURI().toString();
+                // Development mode - load from file system
+                File frontendFile = new File(frontendPath, "index.html");
+                if (frontendFile.exists()) {
+                    url = frontendFile.toURI().toString();
+                    System.out.println("Loading frontend from: " + url);
+                } else {
+                    url = new File(frontendPath).toURI().toString();
+                }
             }
         } else {
             // Production mode - load embedded frontend

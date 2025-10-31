@@ -4,6 +4,7 @@ const { spawn, execSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
+const http = require("http");
 
 let chokidar;
 try {
@@ -13,6 +14,10 @@ try {
 }
 
 const jarPath = path.join(__dirname, "bin", "Caffeine-1.0.0-all.jar");
+
+// Hot-reload server
+let hotReloadServer = null;
+let hotReloadClients = [];
 
 // --- Colors for Terminal ---
 const colors = {
@@ -74,6 +79,102 @@ ${colors.bright}Documentation:${colors.reset}
 
 function showHelp() {
   console.log(helpText);
+}
+
+// --- Hot Reload Server ---
+function startHotReloadServer(frontendPath, port = 9999) {
+  return new Promise((resolve) => {
+    const server = http.createServer((req, res) => {
+      // Handle EventSource for live reload
+      if (req.url === "/__hot-reload") {
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        });
+
+        hotReloadClients.push(res);
+
+        res.on("close", () => {
+          hotReloadClients = hotReloadClients.filter(
+            (client) => client !== res
+          );
+        });
+
+        return;
+      }
+
+      // Serve static files
+      let filePath = path.join(
+        frontendPath,
+        req.url === "/" ? "index.html" : req.url
+      );
+
+      // Prevent directory traversal
+      if (!filePath.startsWith(frontendPath)) {
+        res.writeHead(403);
+        res.end("Forbidden");
+        return;
+      }
+
+      fs.readFile(filePath, (err, data) => {
+        if (err) {
+          res.writeHead(404);
+          res.end("Not Found");
+          return;
+        }
+
+        // Inject hot reload script in HTML files
+        if (filePath.endsWith(".html")) {
+          const hotReloadScript = `
+<script>
+(function() {
+  const es = new EventSource("/__hot-reload");
+  es.onmessage = () => {
+    console.log("🔄 Reloading...");
+    location.reload();
+  };
+  es.onerror = () => {
+    es.close();
+    setTimeout(() => window.location.reload(), 1000);
+  };
+})();
+</script>`;
+          data = data
+            .toString()
+            .replace("</body>", hotReloadScript + "</body>");
+        }
+
+        const mimeTypes = {
+          ".html": "text/html",
+          ".css": "text/css",
+          ".js": "application/javascript",
+          ".json": "application/json",
+          ".png": "image/png",
+          ".jpg": "image/jpeg",
+          ".gif": "image/gif",
+          ".svg": "image/svg+xml",
+        };
+
+        const ext = path.extname(filePath);
+        const mimeType = mimeTypes[ext] || "text/plain";
+
+        res.writeHead(200, { "Content-Type": mimeType });
+        res.end(data);
+      });
+    });
+
+    server.listen(port, () => {
+      resolve(server);
+    });
+  });
+}
+
+// Broadcast reload to all connected clients
+function broadcastReload() {
+  hotReloadClients.forEach((client) => {
+    client.write("data: reload\n\n");
+  });
 }
 
 // --- Argument Parsing ---
@@ -185,67 +286,84 @@ switch (command) {
     log(`\n🔧 Starting development mode with HOT RELOAD`, "cyan");
     logInfo(`Frontend path: ${fullPath}`);
 
-    if (chokidar) {
-      logSuccess("✨ File watcher enabled - Changes detected instantly");
-    } else {
-      logWarn("File watcher not available");
-    }
+    // Start hot-reload server
+    const hotReloadPort = 8888;
+    startHotReloadServer(fullPath, hotReloadPort).then((server) => {
+      logSuccess(
+        `✨ Hot-reload server started on http://localhost:${hotReloadPort}`
+      );
 
-    log("", "reset");
+      // Start Java process pointing to hot-reload server
+      const actualJarPath = checkJar();
+      log(`🚀 Starting Caffeine application...`, "cyan");
+      log(`   Java: java`, "dim");
+      log(`   JAR: ${path.basename(actualJarPath)}`, "dim");
+      log(`   Frontend Server: http://localhost:${hotReloadPort}`, "dim");
+      log("", "reset");
 
-    // Start Java process
-    const actualJarPath = checkJar();
-    log(`🚀 Starting Caffeine application...`, "cyan");
-    log(`   Java: java`, "dim");
-    log(`   JAR: ${path.basename(actualJarPath)}`, "dim");
-    log("", "reset");
-
-    const javaProcess = spawn("java", ["-jar", actualJarPath, fullPath], {
-      stdio: "inherit",
-    });
-
-    // Set up file watcher if chokidar is available
-    if (chokidar) {
-      const watcher = chokidar.watch(fullPath, {
-        ignored: /(^|[\/\\])\.|node_modules/,
-        persistent: true,
-        awaitWriteFinish: {
-          stabilityThreshold: 300,
-          pollInterval: 100,
-        },
-      });
-
-      watcher.on("all", (event, filePath) => {
-        if (event === "add" || event === "change" || event === "unlink") {
-          logInfo(`📝 File ${event}: ${path.basename(filePath)}`);
+      const javaProcess = spawn(
+        "java",
+        ["-jar", actualJarPath, `http://localhost:${hotReloadPort}`],
+        {
+          stdio: "inherit",
         }
-      });
+      );
 
-      watcher.on("error", (error) => {
-        logError(`Watcher error: ${error}`);
-      });
+      // Set up file watcher if chokidar is available
+      if (chokidar) {
+        const watcher = chokidar.watch(fullPath, {
+          ignored: /(^|[\/\\])\.|node_modules/,
+          persistent: true,
+          awaitWriteFinish: {
+            stabilityThreshold: 300,
+            pollInterval: 100,
+          },
+        });
 
-      process.on("SIGINT", () => {
-        logInfo("Stopping file watcher...");
-        watcher.close();
-        javaProcess.kill("SIGTERM");
-        process.exit(0);
-      });
-    }
+        watcher.on("all", (event, filePath) => {
+          if (event === "add" || event === "change" || event === "unlink") {
+            logInfo(`📝 File ${event}: ${path.basename(filePath)}`);
+            // Broadcast reload to all clients
+            broadcastReload();
+          }
+        });
 
-    javaProcess.on("error", (err) => {
-      logError(`Failed to start Java: ${err.message}`);
-      logInfo("Make sure Java 21+ is installed: java -version");
-      process.exit(1);
-    });
+        watcher.on("error", (error) => {
+          logError(`Watcher error: ${error}`);
+        });
 
-    javaProcess.on("close", (code) => {
-      if (code === 0) {
-        logSuccess("Caffeine application closed successfully");
-      } else if (code !== null) {
-        logError(`Caffeine exited with code ${code}`);
+        process.on("SIGINT", () => {
+          logInfo("Stopping file watcher and server...");
+          watcher.close();
+          server.close();
+          javaProcess.kill("SIGTERM");
+          process.exit(0);
+        });
+      } else {
+        process.on("SIGINT", () => {
+          logInfo("Stopping server...");
+          server.close();
+          javaProcess.kill("SIGTERM");
+          process.exit(0);
+        });
       }
-      process.exit(code || 0);
+
+      javaProcess.on("error", (err) => {
+        logError(`Failed to start Java: ${err.message}`);
+        logInfo("Make sure Java 21+ is installed: java -version");
+        server.close();
+        process.exit(1);
+      });
+
+      javaProcess.on("close", (code) => {
+        server.close();
+        if (code === 0) {
+          logSuccess("Caffeine application closed successfully");
+        } else if (code !== null) {
+          logError(`Caffeine exited with code ${code}`);
+        }
+        process.exit(code || 0);
+      });
     });
 
     break;
