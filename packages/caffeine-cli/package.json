@@ -1,6 +1,6 @@
 {
     "name": "caffeine-cli",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "description": "Build desktop applications with Java 21 + JavaFX + HTML/CSS/JavaScript",
     "main": "index.js",
     "bin": {
