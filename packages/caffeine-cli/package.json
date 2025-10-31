@@ -1,12 +1,18 @@
 {
     "name": "caffeine-cli",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "Build desktop applications with Java 21 + JavaFX + HTML/CSS/JavaScript",
     "main": "index.js",
     "bin": {
         "caffeine": "./index.js"
     },
     "preferGlobal": true,
+    "files": [
+        "index.js",
+        "README.md",
+        "bin/",
+        "template/"
+    ],
     "scripts": {
         "test": "echo \"No tests configured yet\" && exit 0"
     },
