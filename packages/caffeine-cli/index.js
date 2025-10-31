@@ -5,6 +5,13 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 
+let chokidar;
+try {
+  chokidar = require("chokidar");
+} catch (e) {
+  // chokidar is optional for hot-reload
+}
+
 const jarPath = path.join(__dirname, "bin", "Caffeine-1.0.0-all.jar");
 
 // --- Colors for Terminal ---
@@ -175,11 +182,72 @@ switch (command) {
       process.exit(1);
     }
 
-    log(`\n🔧 Starting development mode`, "cyan");
+    log(`\n🔧 Starting development mode with HOT RELOAD`, "cyan");
     logInfo(`Frontend path: ${fullPath}`);
+
+    if (chokidar) {
+      logSuccess("✨ File watcher enabled - Changes detected instantly");
+    } else {
+      logWarn("File watcher not available");
+    }
+
     log("", "reset");
 
-    runJava([fullPath]);
+    // Start Java process
+    const actualJarPath = checkJar();
+    log(`🚀 Starting Caffeine application...`, "cyan");
+    log(`   Java: java`, "dim");
+    log(`   JAR: ${path.basename(actualJarPath)}`, "dim");
+    log("", "reset");
+
+    const javaProcess = spawn("java", ["-jar", actualJarPath, fullPath], {
+      stdio: "inherit",
+    });
+
+    // Set up file watcher if chokidar is available
+    if (chokidar) {
+      const watcher = chokidar.watch(fullPath, {
+        ignored: /(^|[\/\\])\.|node_modules/,
+        persistent: true,
+        awaitWriteFinish: {
+          stabilityThreshold: 300,
+          pollInterval: 100,
+        },
+      });
+
+      watcher.on("all", (event, filePath) => {
+        if (event === "add" || event === "change" || event === "unlink") {
+          logInfo(`📝 File ${event}: ${path.basename(filePath)}`);
+        }
+      });
+
+      watcher.on("error", (error) => {
+        logError(`Watcher error: ${error}`);
+      });
+
+      process.on("SIGINT", () => {
+        logInfo("Stopping file watcher...");
+        watcher.close();
+        javaProcess.kill("SIGTERM");
+        process.exit(0);
+      });
+    }
+
+    javaProcess.on("error", (err) => {
+      logError(`Failed to start Java: ${err.message}`);
+      logInfo("Make sure Java 21+ is installed: java -version");
+      process.exit(1);
+    });
+
+    javaProcess.on("close", (code) => {
+      if (code === 0) {
+        logSuccess("Caffeine application closed successfully");
+      } else if (code !== null) {
+        logError(`Caffeine exited with code ${code}`);
+      }
+      process.exit(code || 0);
+    });
+
     break;
 
   case "build":

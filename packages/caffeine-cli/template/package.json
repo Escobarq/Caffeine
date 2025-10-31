@@ -1,17 +1,19 @@
 {
   "name": "caffeine-app",
   "version": "0.1.0",
-  "description": "Mi nueva aplicación Caffeine",
+  "description": "Mi nueva aplicación Caffeine con Java + Web",
   "scripts": {
     "dev": "caffeine dev frontend",
     "prepare-build": "mkdir -p dist && cp -r frontend/* dist/",
-    "build": "npm run prepare-build && caffeine build"
+    "build": "npm run prepare-build && caffeine build",
+    "dev:watch": "caffeine dev frontend --watch"
   },
   "keywords": [
     "caffeine",
     "desktop",
     "java",
-    "javafx"
+    "javafx",
+    "electron-alternative"
   ],
   "author": "",
   "license": "ISC"

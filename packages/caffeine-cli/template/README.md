@@ -1,52 +1,87 @@
-# Caffeine App
+# ☕ Caffeine App
 
-Nueva aplicación creada con [Caffeine Framework](https://github.com/Escobarq/Caffeine).
+Nueva aplicación de escritorio creada con [Caffeine Framework](https://github.com/Escobarq/Caffeine).
 
-## 🚀 Quick Start
+Combina la potencia de **Java 21 + JavaFX** con el desarrollo moderno de **HTML/CSS/JavaScript**.
 
-### Desarrollo
+## 🚀 Inicio Rápido
+
+### 1️⃣ Desarrollo
 
 ```bash
-# Inicia el servidor de desarrollo
-caffeine dev frontend
+# Inicia el servidor de desarrollo con hot-reload
+npm run dev
 
-# En otra terminal, edita los archivos en frontend/
+# O explícitamente:
+caffeine dev frontend
 ```
 
-### Compilar para Producción
+Los cambios en archivos se detectan automáticamente y se muestran en la ventana de la app.
+
+### 2️⃣ Compilar para Producción
 
 ```bash
-# Build completo con jpackage
+# Build completo
 npm run build
 
-# La app compilada estará en:
+# La app ejecutable está en:
 # dist-native/[nombre-app]/bin/[nombre-app]
 ```
 
-## 📁 Estructura
+### 3️⃣ Ejecutar la App Compilada
+
+```bash
+./dist-native/[nombre-app]/bin/[nombre-app]
+```
+
+## 📁 Estructura del Proyecto
 
 ```
 .
-├── frontend/              # Tu código HTML/CSS/JS
-│   ├── index.html
-│   ├── style.css
-│   └── main.js
-├── src-caffeine/          # Backend Java (opcional)
+├── frontend/                    # Tu código HTML/CSS/JS
+│   ├── index.html              # Interfaz principal
+│   ├── style.css               # Estilos
+│   └── main.js                 # Lógica del frontend
+│
+├── src-caffeine/               # Backend Java (opcional)
+│   ├── settings.gradle         # Configuración del proyecto
 │   └── app/
-│       ├── build.gradle
+│       ├── build.gradle        # Build config
 │       └── src/
-├── package.json           # Scripts y dependencias
-├── dist/                  # Generado: frontend compilado
-└── dist-native/           # Generado: app ejecutable
+│           ├── main/
+│           │   └── java/org/caffeine/app/
+│           │       ├── Launcher.java    # Punto de entrada
+│           │       └── App.java         # Aplicación JavaFX
+│           └── test/           # Tests
+│
+├── package.json                # Scripts y dependencias
+├── README.md                   # Este archivo
+├── dist/                       # Generado: frontend compilado
+└── dist-native/                # Generado: aplicación ejecutable
 ```
 
-## 📝 Desarrollo
+## 🎨 Desarrollo
 
-1. **Edita** `frontend/index.html`, `style.css`, `main.js`
-2. **Guarda** - Los cambios se reflejan automáticamente
-3. **Prueba** en la ventana JavaFX
+### Editar Frontend
 
-## 📦 Compilar
+1. Abre cualquier editor (VS Code, etc)
+2. Edita archivos en `frontend/`:
+   - `index.html` - Estructura
+   - `style.css` - Estilos
+   - `main.js` - Lógica
+3. Guarda el archivo
+4. El cambio se detecta automáticamente ✨
+5. Actualiza la ventana de la app (Ctrl+R o cierra/abre)
+
+### Personalizar Backend
+
+Si necesitas lógica Java personalizada:
+
+1. Edita archivos en `src-caffeine/app/src/main/java/`
+2. Compila: `cd src-caffeine && ./gradlew build`
+3. Reinicia el servidor de desarrollo
+
+## 📦 Build y Distribución
 
 ```bash
 npm run build
