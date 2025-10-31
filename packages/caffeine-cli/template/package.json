@@ -1,29 +1,18 @@
 {
-  {
-    "name": "caffeine-app",
-    "name": "caffeine-app",
-    "version": "0.1.0",
-    "version": "0.1.0",
-    "description": "Mi nueva aplicación Caffeine",
-    "description": "Mi nueva aplicación Caffeine",
-    "scripts": {
-      "scripts": {
-        "dev": "caffeine dev frontend",
-        "dev": "caffeine dev frontend",
-        "prepare-build": "mkdir -p dist && cp -r frontend/* dist/",
-        "prepare-build": "mkdir -p dist && cp -r frontend/* dist/",
-        "build": "npm run prepare-build && caffeine build""build": "npm run prepare-build && caffeine build"
-      },
-    },
-    "keywords": [
-      "caffeine",
-      "desktop",
-      "java"
-    ],
-    "keywords": [
-      "author": "",
-      "caffeine""license": "ISC"
-    ],
-  }  "author": "",
+  "name": "caffeine-app",
+  "version": "0.1.0",
+  "description": "Mi nueva aplicación Caffeine",
+  "scripts": {
+    "dev": "caffeine dev frontend",
+    "prepare-build": "mkdir -p dist && cp -r frontend/* dist/",
+    "build": "npm run prepare-build && caffeine build"
+  },
+  "keywords": [
+    "caffeine",
+    "desktop",
+    "java",
+    "javafx"
+  ],
+  "author": "",
   "license": "ISC"
 }
