@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'application'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
 }
 
 java {
@@ -22,12 +23,18 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
 }
 
+javafx {
+    version = '21.0.2'
+    modules = ['javafx.controls', 'javafx.fxml', 'javafx.web']
+}
+
 application {
     mainClass = 'org.caffeine.app.Launcher'
 }
 
 tasks.register('fatJar', Jar) {
     archiveClassifier = 'all'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     
     from sourceSets.main.output
     
