@@ -201,25 +201,72 @@ function checkJar() {
 function runJava(javaArgs) {
   const actualJarPath = checkJar();
 
+  // JVM arguments for better compatibility, especially on Windows
+  const jvmArgs = [
+    // Fix JavaFX warnings and access issues
+    "--enable-native-access=ALL-UNNAMED",
+    "--add-opens", "javafx.controls/javafx.scene.control=ALL-UNNAMED",
+    "--add-opens", "javafx.graphics/javafx.scene=ALL-UNNAMED",
+    "--add-opens", "javafx.base/javafx.util=ALL-UNNAMED",
+    
+    // Graphics pipeline fallback for Windows
+    "-Dprism.order=sw",
+    "-Dprism.verbose=true",
+    "-Djava.awt.headless=false",
+    
+    // JAR file
+    "-jar", actualJarPath
+  ];
+
   log(`🚀 Starting Caffeine application...`, "cyan");
   log(`   Java: java`, "dim");
   log(`   JAR: ${path.basename(actualJarPath)}`, "dim");
   log(`   Args: ${javaArgs.join(" ")}`, "dim");
   log("", "reset");
 
-  const javaProcess = spawn("java", ["-jar", actualJarPath, ...javaArgs], {
+  const javaProcess = spawn("java", [...jvmArgs, ...javaArgs], {
     stdio: "inherit",
   });
 
   javaProcess.on("error", (err) => {
     logError(`Failed to start Java: ${err.message}`);
     logInfo("Make sure Java 21+ is installed: java -version");
+    
+    // Specific error handling for Windows JavaFX issues
+    if (process.platform === "win32") {
+      logWarn("Windows JavaFX troubleshooting:");
+      logWarn("  1. Update graphics drivers");
+      logWarn("  2. Install Visual C++ Redistributable");
+      logWarn("  3. Try running as administrator");
+      logWarn("  4. Check Windows Display Settings");
+    }
+    
     process.exit(1);
   });
 
   javaProcess.on("close", (code) => {
     if (code === 0) {
       logSuccess("Caffeine application closed successfully");
+    } else if (code === 1) {
+      logError(`Caffeine exited with code ${code}`);
+      
+      // Specific guidance for JavaFX runtime errors
+      logInfo("JavaFX Runtime Error - Possible solutions:");
+      logInfo("  1. Update Java to latest version (21+)");
+      logInfo("  2. Update graphics drivers");
+      
+      if (process.platform === "win32") {
+        logInfo("  3. Install Microsoft Visual C++ Redistributable");
+        logInfo("  4. Run 'java -version' to verify Java installation");
+        logInfo("  5. Try running command prompt as administrator");
+      } else if (process.platform === "linux") {
+        logInfo("  3. Install libgtk-3-dev libxss1 libgconf-2-4");
+        logInfo("  4. Check DISPLAY variable: echo $DISPLAY");
+      } else if (process.platform === "darwin") {
+        logInfo("  3. Update macOS and Xcode Command Line Tools");
+      }
+      
+      logInfo("  For more help: https://github.com/Escobarq/Caffeine/issues");
     } else {
       logError(`Caffeine exited with code ${code}`);
     }
@@ -295,6 +342,24 @@ switch (command) {
 
       // Start Java process pointing to hot-reload server
       const actualJarPath = checkJar();
+      
+      // JVM arguments for better compatibility, especially on Windows
+      const jvmArgs = [
+        // Fix JavaFX warnings and access issues
+        "--enable-native-access=ALL-UNNAMED",
+        "--add-opens", "javafx.controls/javafx.scene.control=ALL-UNNAMED",
+        "--add-opens", "javafx.graphics/javafx.scene=ALL-UNNAMED",
+        "--add-opens", "javafx.base/javafx.util=ALL-UNNAMED",
+        
+        // Graphics pipeline fallback for Windows
+        "-Dprism.order=sw",
+        "-Dprism.verbose=true",
+        "-Djava.awt.headless=false",
+        
+        // JAR file
+        "-jar", actualJarPath
+      ];
+      
       log(`🚀 Starting Caffeine application...`, "cyan");
       log(`   Java: java`, "dim");
       log(`   JAR: ${path.basename(actualJarPath)}`, "dim");
@@ -303,7 +368,7 @@ switch (command) {
 
       const javaProcess = spawn(
         "java",
-        ["-jar", actualJarPath, `http://localhost:${hotReloadPort}`],
+        [...jvmArgs, `http://localhost:${hotReloadPort}`],
         {
           stdio: "inherit",
         }
@@ -351,6 +416,16 @@ switch (command) {
       javaProcess.on("error", (err) => {
         logError(`Failed to start Java: ${err.message}`);
         logInfo("Make sure Java 21+ is installed: java -version");
+        
+        // Specific error handling for Windows JavaFX issues
+        if (process.platform === "win32") {
+          logWarn("Windows JavaFX troubleshooting:");
+          logWarn("  1. Update graphics drivers");
+          logWarn("  2. Install Visual C++ Redistributable");
+          logWarn("  3. Try running as administrator");
+          logWarn("  4. Check Windows Display Settings");
+        }
+        
         server.close();
         process.exit(1);
       });
@@ -359,6 +434,26 @@ switch (command) {
         server.close();
         if (code === 0) {
           logSuccess("Caffeine application closed successfully");
+        } else if (code === 1) {
+          logError(`Caffeine exited with code ${code}`);
+          
+          // Specific guidance for JavaFX runtime errors
+          logInfo("JavaFX Runtime Error - Possible solutions:");
+          logInfo("  1. Update Java to latest version (21+)");
+          logInfo("  2. Update graphics drivers");
+          
+          if (process.platform === "win32") {
+            logInfo("  3. Install Microsoft Visual C++ Redistributable");
+            logInfo("  4. Run 'java -version' to verify Java installation");
+            logInfo("  5. Try running command prompt as administrator");
+          } else if (process.platform === "linux") {
+            logInfo("  3. Install libgtk-3-dev libxss1 libgconf-2-4");
+            logInfo("  4. Check DISPLAY variable: echo $DISPLAY");
+          } else if (process.platform === "darwin") {
+            logInfo("  3. Update macOS and Xcode Command Line Tools");
+          }
+          
+          logInfo("  For more help: https://github.com/Escobarq/Caffeine/issues");
         } else if (code !== null) {
           logError(`Caffeine exited with code ${code}`);
         }
