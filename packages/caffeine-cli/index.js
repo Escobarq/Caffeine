@@ -6,6 +6,26 @@ const fs = require("fs");
 const os = require("os");
 const http = require("http");
 
+// UI Libraries
+let chalk, Table, ora, boxen;
+try {
+  chalk = require("chalk");
+  Table = require("cli-table3");
+  ora = require("ora");
+  boxen = require("boxen");
+} catch (e) {
+  // Fallback if UI libraries not available
+  chalk = {
+    green: (str) => str,
+    red: (str) => str,
+    yellow: (str) => str,
+    blue: (str) => str,
+    cyan: (str) => str,
+    bold: (str) => str,
+    dim: (str) => str,
+  };
+}
+
 let chokidar;
 try {
   chokidar = require("chokidar");
@@ -191,92 +211,196 @@ function getOptimalJVMArgs() {
 }
 
 async function runDoctorCommand() {
-  log(`\n🏥 Caffeine System Diagnosis`, "cyan");
-  log(`Platform: ${process.platform} ${os.arch()}`, "dim");
-  log("", "reset");
+  // Show animated header
+  if (boxen) {
+    console.log(
+      boxen(chalk.bold.cyan("🏥 Caffeine System Diagnosis"), {
+        padding: 1,
+        borderStyle: "round",
+        borderColor: "cyan",
+      })
+    );
+  } else {
+    console.log(chalk.cyan.bold("\n🏥 Caffeine System Diagnosis"));
+  }
+
+  console.log(chalk.dim(`Platform: ${process.platform} ${os.arch()}\n`));
+
+  // Animated spinner while checking
+  const spinner = ora ? ora("Checking system requirements...").start() : null;
 
   // Check core requirements
-  log("Checking core requirements...", "bright");
   const javaCheck = await checkJavaRequirements();
   const nodeCheck = await checkNodeRequirements();
   const jarExists = fs.existsSync(jarPath);
 
+  if (spinner) spinner.succeed("System requirements checked");
+
   // Create requirements table
-  console.log(`
-╔════════════════════════════════════════════════════════════════════════════╗
-║                         SYSTEM REQUIREMENTS                                ║
-╠════════════════════════════════════════════════════════════════════════════╣`);
+  if (Table) {
+    const requirementsTable = new Table({
+      head: [
+        chalk.bold("Requirement"),
+        chalk.bold("Status"),
+        chalk.bold("Version"),
+      ],
+      style: {
+        head: ["cyan"],
+        border: ["gray"],
+      },
+    });
 
-  const javaStatus = javaCheck.ok
-    ? `${colors.green}✅ ${javaCheck.version}`
-    : `${colors.red}❌ ${javaCheck.version}`;
-  const nodeStatus = nodeCheck.ok
-    ? `${colors.green}✅ ${nodeCheck.version}`
-    : `${colors.red}❌ ${nodeCheck.version}`;
-  const jarStatus = jarExists
-    ? `${colors.green}✅ Found`
-    : `${colors.red}❌ Missing`;
+    requirementsTable.push(
+      [
+        "Java 21+",
+        javaCheck.ok ? chalk.green("✅ OK") : chalk.red("❌ Failed"),
+        javaCheck.version,
+      ],
+      [
+        "Node.js 16+",
+        nodeCheck.ok ? chalk.green("✅ OK") : chalk.red("❌ Failed"),
+        nodeCheck.version,
+      ],
+      [
+        "Caffeine JAR",
+        jarExists ? chalk.green("✅ Found") : chalk.red("❌ Missing"),
+        jarExists ? "Available" : "Not found",
+      ]
+    );
 
-  console.log(
-    `║ Java 21+              │ ${javaStatus}${colors.reset}`.padEnd(87) + "║"
-  );
-  console.log(
-    `║ Node.js 16+           │ ${nodeStatus}${colors.reset}`.padEnd(87) + "║"
-  );
-  console.log(
-    `║ Caffeine JAR          │ ${jarStatus}${colors.reset}`.padEnd(87) + "║"
-  );
+    console.log("\n" + requirementsTable.toString());
+  } else {
+    // Fallback without table
+    console.log("\nSystem Requirements:");
+    console.log(
+      `  Java 21+:     ${javaCheck.ok ? "✅" : "❌"} ${javaCheck.version}`
+    );
+    console.log(
+      `  Node.js 16+:  ${nodeCheck.ok ? "✅" : "❌"} ${nodeCheck.version}`
+    );
+    console.log(
+      `  Caffeine JAR: ${jarExists ? "✅" : "❌"} ${
+        jarExists ? "Found" : "Missing"
+      }`
+    );
+  }
 
   // Check platform-specific dependencies
-  log("\nChecking platform-specific dependencies...", "bright");
+  const platformSpinner = ora
+    ? ora("Checking platform dependencies...").start()
+    : null;
   const platformDeps = await checkPlatformSpecificDeps();
 
-  if (Object.keys(platformDeps).length > 0) {
-    console.log(`╠════════════════════════════════════════════════════════════════════════════╣
-║                      PLATFORM DEPENDENCIES                                ║
-╠════════════════════════════════════════════════════════════════════════════╣`);
+  if (platformSpinner) platformSpinner.succeed("Platform dependencies checked");
+
+  if (Object.keys(platformDeps).length > 0 && Table) {
+    const platformTable = new Table({
+      head: [
+        chalk.bold("Platform Dependency"),
+        chalk.bold("Status"),
+        chalk.bold("Notes"),
+      ],
+      style: {
+        head: ["yellow"],
+        border: ["gray"],
+      },
+    });
 
     for (const [key, dep] of Object.entries(platformDeps)) {
-      console.log(
-        `║ ${dep.name.padEnd(19)} │ ${dep.status}${colors.reset}`.padEnd(87) +
-          "║"
-      );
-      if (dep.note) {
-        console.log(
-          `║   ${colors.dim}${dep.note}${colors.reset}`.padEnd(87) + "║"
-        );
-      }
+      const status = dep.status.includes("✅")
+        ? chalk.green(dep.status)
+        : dep.status.includes("❌")
+        ? chalk.red(dep.status)
+        : chalk.yellow(dep.status);
+
+      platformTable.push([dep.name, status, dep.note || ""]);
     }
+
+    console.log("\n" + platformTable.toString());
   }
 
   // Show optimal JVM configuration
-  console.log(`╠════════════════════════════════════════════════════════════════════════════╣
-║                        OPTIMAL CONFIGURATION                              ║
-╚════════════════════════════════════════════════════════════════════════════╝`);
-
   const jvmArgs = getOptimalJVMArgs();
-  log(`\nOptimal JVM args for ${process.platform}:`, "bright");
-  jvmArgs.forEach((arg) => {
-    log(`  ${arg}`, "dim");
-  });
+
+  if (boxen) {
+    const jvmConfig = jvmArgs.map((arg) => chalk.dim(`  ${arg}`)).join("\n");
+    console.log(
+      "\n" +
+        boxen(
+          chalk.bold(`Optimal JVM Configuration (${process.platform}):\n\n`) +
+            jvmConfig,
+          {
+            padding: 1,
+            borderStyle: "single",
+            borderColor: "green",
+            title: "⚙️  Configuration",
+            titleAlignment: "center",
+          }
+        )
+    );
+  } else {
+    console.log(
+      chalk.green.bold(`\nOptimal JVM args for ${process.platform}:`)
+    );
+    jvmArgs.forEach((arg) => console.log(chalk.dim(`  ${arg}`)));
+  }
 
   // Overall status
   const allGood = javaCheck.ok && nodeCheck.ok && jarExists;
 
   if (allGood) {
-    logSuccess("\n🎉 System ready for Caffeine development!");
-    logInfo("You can start creating projects with: caffeine init my-app");
+    if (boxen) {
+      console.log(
+        "\n" +
+          boxen(
+            chalk.green.bold("🎉 System ready for Caffeine development!\n") +
+              chalk.cyan("You can start creating projects with: ") +
+              chalk.yellow("caffeine init my-app"),
+            {
+              padding: 1,
+              borderStyle: "double",
+              borderColor: "green",
+            }
+          )
+      );
+    } else {
+      console.log(
+        chalk.green.bold("\n🎉 System ready for Caffeine development!")
+      );
+      console.log(
+        chalk.cyan("You can start creating projects with: caffeine init my-app")
+      );
+    }
   } else {
-    logWarn("\n⚠️  Some requirements need attention:");
-    if (!javaCheck.ok) logError("  • Install Java 21 or higher");
-    if (!nodeCheck.ok) logError("  • Install Node.js 16 or higher");
+    const issues = [];
+    if (!javaCheck.ok) issues.push("• Install Java 21 or higher");
+    if (!nodeCheck.ok) issues.push("• Install Node.js 16 or higher");
     if (!jarExists)
-      logError("  • Reinstall caffeine-cli: npm install -g caffeine-cli");
+      issues.push("• Reinstall caffeine-cli: npm install -g caffeine-cli");
+
+    if (boxen) {
+      console.log(
+        "\n" +
+          boxen(
+            chalk.yellow.bold("⚠️  Some requirements need attention:\n\n") +
+              issues.map((issue) => chalk.red(issue)).join("\n"),
+            {
+              padding: 1,
+              borderStyle: "single",
+              borderColor: "yellow",
+            }
+          )
+      );
+    } else {
+      console.log(chalk.yellow.bold("\n⚠️  Some requirements need attention:"));
+      issues.forEach((issue) => console.log(chalk.red(`  ${issue}`)));
+    }
   }
 
-  log(
-    "\n📖 For more help: https://github.com/Escobarq/Caffeine#readme\n",
-    "dim"
+  console.log(
+    chalk.dim(
+      "\n📖 For more help: https://github.com/Escobarq/Caffeine#readme\n"
+    )
   );
 }
 
@@ -496,300 +620,303 @@ function runJava(javaArgs) {
 
 async function main() {
   switch (command) {
-  case "init":
-    const projectName = args[1];
-    if (!projectName) {
-      logError("Project name is required");
-      log("Usage: caffeine init <name>", "yellow");
-      process.exit(1);
-    }
+    case "init":
+      const projectName = args[1];
+      if (!projectName) {
+        logError("Project name is required");
+        log("Usage: caffeine init <name>", "yellow");
+        process.exit(1);
+      }
 
-    const projectPath = path.join(process.cwd(), projectName);
-    const templatePath = path.join(__dirname, "template");
+      const projectPath = path.join(process.cwd(), projectName);
+      const templatePath = path.join(__dirname, "template");
 
-    log(`\n✨ Creating new Caffeine project: ${projectName}`, "cyan");
+      log(`\n✨ Creating new Caffeine project: ${projectName}`, "cyan");
 
-    if (fs.existsSync(projectPath)) {
-      logError(`Directory '${projectName}' already exists`);
-      process.exit(1);
-    }
+      if (fs.existsSync(projectPath)) {
+        logError(`Directory '${projectName}' already exists`);
+        process.exit(1);
+      }
 
-    if (!fs.existsSync(templatePath)) {
-      logError(`Template not found at: ${templatePath}`);
-      process.exit(1);
-    }
+      if (!fs.existsSync(templatePath)) {
+        logError(`Template not found at: ${templatePath}`);
+        process.exit(1);
+      }
 
-    logInfo(`Copying template from: ${templatePath}`);
-    fs.cpSync(templatePath, projectPath, { recursive: true });
+      logInfo(`Copying template from: ${templatePath}`);
+      fs.cpSync(templatePath, projectPath, { recursive: true });
 
-    const appPackagePath = path.join(projectPath, "package.json");
-    const appPackage = JSON.parse(fs.readFileSync(appPackagePath, "utf-8"));
-    appPackage.name = projectName;
-    fs.writeFileSync(appPackagePath, JSON.stringify(appPackage, null, 2));
+      const appPackagePath = path.join(projectPath, "package.json");
+      const appPackage = JSON.parse(fs.readFileSync(appPackagePath, "utf-8"));
+      appPackage.name = projectName;
+      fs.writeFileSync(appPackagePath, JSON.stringify(appPackage, null, 2));
 
-    logSuccess("Project created successfully!");
-    log(`\n📁 Next steps:`, "bright");
-    log(`   cd ${projectName}`, "cyan");
-    log(`   caffeine dev frontend`, "cyan");
-    log(`\n📖 For more info: https://github.com/Escobarq/Caffeine\n`, "dim");
+      logSuccess("Project created successfully!");
+      log(`\n📁 Next steps:`, "bright");
+      log(`   cd ${projectName}`, "cyan");
+      log(`   caffeine dev frontend`, "cyan");
+      log(`\n📖 For more info: https://github.com/Escobarq/Caffeine\n`, "dim");
 
-    break;
+      break;
 
-  case "dev":
-    const frontendPath = args[1];
-    if (!frontendPath) {
-      logError("Frontend path is required");
-      log("Usage: caffeine dev <path>", "yellow");
-      process.exit(1);
-    }
+    case "dev":
+      const frontendPath = args[1];
+      if (!frontendPath) {
+        logError("Frontend path is required");
+        log("Usage: caffeine dev <path>", "yellow");
+        process.exit(1);
+      }
 
-    const fullPath = path.resolve(frontendPath);
-    if (!fs.existsSync(fullPath)) {
-      logError(`Frontend path not found: ${fullPath}`);
-      process.exit(1);
-    }
+      const fullPath = path.resolve(frontendPath);
+      if (!fs.existsSync(fullPath)) {
+        logError(`Frontend path not found: ${fullPath}`);
+        process.exit(1);
+      }
 
-    log(`\n🔧 Starting development mode with HOT RELOAD`, "cyan");
-    logInfo(`Frontend path: ${fullPath}`);
+      log(`\n🔧 Starting development mode with HOT RELOAD`, "cyan");
+      logInfo(`Frontend path: ${fullPath}`);
 
-    // Start hot-reload server
-    const hotReloadPort = 8888;
-    startHotReloadServer(fullPath, hotReloadPort).then((server) => {
-      logSuccess(
-        `✨ Hot-reload server started on http://localhost:${hotReloadPort}`
-      );
+      // Start hot-reload server
+      const hotReloadPort = 8888;
+      startHotReloadServer(fullPath, hotReloadPort).then((server) => {
+        logSuccess(
+          `✨ Hot-reload server started on http://localhost:${hotReloadPort}`
+        );
 
-      // Start Java process pointing to hot-reload server
-      const actualJarPath = checkJar();
+        // Start Java process pointing to hot-reload server
+        const actualJarPath = checkJar();
 
-      // Get optimal JVM arguments based on platform
-      const platformJvmArgs = getOptimalJVMArgs();
-      const jvmArgs = [...platformJvmArgs, "-jar", actualJarPath];
+        // Get optimal JVM arguments based on platform
+        const platformJvmArgs = getOptimalJVMArgs();
+        const jvmArgs = [...platformJvmArgs, "-jar", actualJarPath];
 
-      log(`🚀 Starting Caffeine application...`, "cyan");
-      log(`   Java: java`, "dim");
-      log(`   JAR: ${path.basename(actualJarPath)}`, "dim");
-      log(`   Frontend Server: http://localhost:${hotReloadPort}`, "dim");
+        log(`🚀 Starting Caffeine application...`, "cyan");
+        log(`   Java: java`, "dim");
+        log(`   JAR: ${path.basename(actualJarPath)}`, "dim");
+        log(`   Frontend Server: http://localhost:${hotReloadPort}`, "dim");
+        log("", "reset");
+
+        const javaProcess = spawn(
+          "java",
+          [...jvmArgs, `http://localhost:${hotReloadPort}`],
+          {
+            stdio: "inherit",
+          }
+        );
+
+        // Set up file watcher if chokidar is available
+        if (chokidar) {
+          const watcher = chokidar.watch(fullPath, {
+            ignored: /(^|[\/\\])\.|node_modules/,
+            persistent: true,
+            awaitWriteFinish: {
+              stabilityThreshold: 300,
+              pollInterval: 100,
+            },
+          });
+
+          watcher.on("all", (event, filePath) => {
+            if (event === "add" || event === "change" || event === "unlink") {
+              logInfo(`📝 File ${event}: ${path.basename(filePath)}`);
+              // Broadcast reload to all clients
+              broadcastReload();
+            }
+          });
+
+          watcher.on("error", (error) => {
+            logError(`Watcher error: ${error}`);
+          });
+
+          process.on("SIGINT", () => {
+            logInfo("Stopping file watcher and server...");
+            watcher.close();
+            server.close();
+            javaProcess.kill("SIGTERM");
+            process.exit(0);
+          });
+        } else {
+          process.on("SIGINT", () => {
+            logInfo("Stopping server...");
+            server.close();
+            javaProcess.kill("SIGTERM");
+            process.exit(0);
+          });
+        }
+
+        javaProcess.on("error", (err) => {
+          logError(`Failed to start Java: ${err.message}`);
+          logInfo("Make sure Java 21+ is installed: java -version");
+
+          // Specific error handling for Windows JavaFX issues
+          if (process.platform === "win32") {
+            logWarn("Windows JavaFX troubleshooting:");
+            logWarn("  1. Update graphics drivers");
+            logWarn("  2. Install Visual C++ Redistributable");
+            logWarn("  3. Try running as administrator");
+            logWarn("  4. Check Windows Display Settings");
+          }
+
+          server.close();
+          process.exit(1);
+        });
+
+        javaProcess.on("close", (code) => {
+          server.close();
+          if (code === 0) {
+            logSuccess("Caffeine application closed successfully");
+          } else if (code === 1) {
+            logError(`Caffeine exited with code ${code}`);
+
+            // Specific guidance for JavaFX runtime errors
+            logInfo("JavaFX Runtime Error - Possible solutions:");
+            logInfo("  1. Update Java to latest version (21+)");
+            logInfo("  2. Update graphics drivers");
+
+            if (process.platform === "win32") {
+              logInfo("  3. Install Microsoft Visual C++ Redistributable");
+              logInfo("  4. Run 'java -version' to verify Java installation");
+              logInfo("  5. Try running command prompt as administrator");
+            } else if (process.platform === "linux") {
+              logInfo("  3. Install libgtk-3-dev libxss1 libgconf-2-4");
+              logInfo("  4. Check DISPLAY variable: echo $DISPLAY");
+            } else if (process.platform === "darwin") {
+              logInfo("  3. Update macOS and Xcode Command Line Tools");
+            }
+
+            logInfo(
+              "  For more help: https://github.com/Escobarq/Caffeine/issues"
+            );
+          } else if (code !== null) {
+            logError(`Caffeine exited with code ${code}`);
+          }
+          process.exit(code || 0);
+        });
+      });
+
+      break;
+
+    case "doctor":
+      await runDoctorCommand();
+      break;
+
+    case "build":
+      log(`\n📦 Building Caffeine application for production...`, "cyan");
       log("", "reset");
 
-      const javaProcess = spawn(
-        "java",
-        [...jvmArgs, `http://localhost:${hotReloadPort}`],
-        {
-          stdio: "inherit",
-        }
-      );
+      let appName, appVersion;
 
-      // Set up file watcher if chokidar is available
-      if (chokidar) {
-        const watcher = chokidar.watch(fullPath, {
-          ignored: /(^|[\/\\])\.|node_modules/,
-          persistent: true,
-          awaitWriteFinish: {
-            stabilityThreshold: 300,
-            pollInterval: 100,
-          },
-        });
-
-        watcher.on("all", (event, filePath) => {
-          if (event === "add" || event === "change" || event === "unlink") {
-            logInfo(`📝 File ${event}: ${path.basename(filePath)}`);
-            // Broadcast reload to all clients
-            broadcastReload();
-          }
-        });
-
-        watcher.on("error", (error) => {
-          logError(`Watcher error: ${error}`);
-        });
-
-        process.on("SIGINT", () => {
-          logInfo("Stopping file watcher and server...");
-          watcher.close();
-          server.close();
-          javaProcess.kill("SIGTERM");
-          process.exit(0);
-        });
-      } else {
-        process.on("SIGINT", () => {
-          logInfo("Stopping server...");
-          server.close();
-          javaProcess.kill("SIGTERM");
-          process.exit(0);
-        });
-      }
-
-      javaProcess.on("error", (err) => {
-        logError(`Failed to start Java: ${err.message}`);
-        logInfo("Make sure Java 21+ is installed: java -version");
-
-        // Specific error handling for Windows JavaFX issues
-        if (process.platform === "win32") {
-          logWarn("Windows JavaFX troubleshooting:");
-          logWarn("  1. Update graphics drivers");
-          logWarn("  2. Install Visual C++ Redistributable");
-          logWarn("  3. Try running as administrator");
-          logWarn("  4. Check Windows Display Settings");
-        }
-
-        server.close();
+      // Step 1: Prepare frontend
+      try {
+        log("  [1/3] 🏗️  Preparing frontend...", "bright");
+        execSync("npm run prepare-build", { stdio: "inherit" });
+        logSuccess("Frontend prepared");
+      } catch (error) {
+        logError("Failed to prepare frontend");
+        logInfo("Make sure npm run prepare-build is defined in package.json");
         process.exit(1);
-      });
+      }
 
-      javaProcess.on("close", (code) => {
-        server.close();
-        if (code === 0) {
-          logSuccess("Caffeine application closed successfully");
-        } else if (code === 1) {
-          logError(`Caffeine exited with code ${code}`);
+      // Step 2: Embed in JAR
+      log("\n  [2/3] 📦  Embedding frontend in JAR...", "bright");
+      const buildDir = path.join(process.cwd(), "caffeine-build");
+      const prodJarName = "Caffeine-App-Prod.jar";
+      const prodJarPath = path.join(buildDir, prodJarName);
 
-          // Specific guidance for JavaFX runtime errors
-          logInfo("JavaFX Runtime Error - Possible solutions:");
-          logInfo("  1. Update Java to latest version (21+)");
-          logInfo("  2. Update graphics drivers");
-
-          if (process.platform === "win32") {
-            logInfo("  3. Install Microsoft Visual C++ Redistributable");
-            logInfo("  4. Run 'java -version' to verify Java installation");
-            logInfo("  5. Try running command prompt as administrator");
-          } else if (process.platform === "linux") {
-            logInfo("  3. Install libgtk-3-dev libxss1 libgconf-2-4");
-            logInfo("  4. Check DISPLAY variable: echo $DISPLAY");
-          } else if (process.platform === "darwin") {
-            logInfo("  3. Update macOS and Xcode Command Line Tools");
-          }
-
-          logInfo(
-            "  For more help: https://github.com/Escobarq/Caffeine/issues"
-          );
-        } else if (code !== null) {
-          logError(`Caffeine exited with code ${code}`);
+      try {
+        if (fs.existsSync(buildDir)) {
+          fs.rmSync(buildDir, { recursive: true, force: true });
         }
-        process.exit(code || 0);
-      });
-    });
+        fs.mkdirSync(buildDir);
 
-    break;
+        const actualJarPath = checkJar();
+        fs.copyFileSync(actualJarPath, prodJarPath);
 
-  case "doctor":
-    await runDoctorCommand();
-    break;
+        const frontendDistPath = path.join(process.cwd(), "dist");
+        const frontendStagingPath = path.join(buildDir, "frontend");
 
-  case "build":
-    log(`\n📦 Building Caffeine application for production...`, "cyan");
-    log("", "reset");
+        if (!fs.existsSync(frontendDistPath)) {
+          logWarn(
+            "dist/ folder not found. Make sure npm run prepare-build created it"
+          );
+        } else {
+          fs.mkdirSync(frontendStagingPath);
+          fs.cpSync(frontendDistPath, frontendStagingPath, { recursive: true });
+          execSync(`jar uf ${prodJarPath} -C ${buildDir} frontend`, {
+            stdio: "inherit",
+          });
+        }
 
-    let appName, appVersion;
-
-    // Step 1: Prepare frontend
-    try {
-      log("  [1/3] 🏗️  Preparing frontend...", "bright");
-      execSync("npm run prepare-build", { stdio: "inherit" });
-      logSuccess("Frontend prepared");
-    } catch (error) {
-      logError("Failed to prepare frontend");
-      logInfo("Make sure npm run prepare-build is defined in package.json");
-      process.exit(1);
-    }
-
-    // Step 2: Embed in JAR
-    log("\n  [2/3] 📦  Embedding frontend in JAR...", "bright");
-    const buildDir = path.join(process.cwd(), "caffeine-build");
-    const prodJarName = "Caffeine-App-Prod.jar";
-    const prodJarPath = path.join(buildDir, prodJarName);
-
-    try {
-      if (fs.existsSync(buildDir)) {
-        fs.rmSync(buildDir, { recursive: true, force: true });
-      }
-      fs.mkdirSync(buildDir);
-
-      const actualJarPath = checkJar();
-      fs.copyFileSync(actualJarPath, prodJarPath);
-
-      const frontendDistPath = path.join(process.cwd(), "dist");
-      const frontendStagingPath = path.join(buildDir, "frontend");
-
-      if (!fs.existsSync(frontendDistPath)) {
-        logWarn(
-          "dist/ folder not found. Make sure npm run prepare-build created it"
-        );
-      } else {
-        fs.mkdirSync(frontendStagingPath);
-        fs.cpSync(frontendDistPath, frontendStagingPath, { recursive: true });
-        execSync(`jar uf ${prodJarPath} -C ${buildDir} frontend`, {
-          stdio: "inherit",
-        });
+        logSuccess("JAR embedded successfully");
+      } catch (error) {
+        logError(`Failed to embed JAR: ${error.message}`);
+        process.exit(1);
       }
 
-      logSuccess("JAR embedded successfully");
-    } catch (error) {
-      logError(`Failed to embed JAR: ${error.message}`);
-      process.exit(1);
-    }
-
-    // Step 3: Create native executable
-    log("\n  [3/3] 🚀  Creating native executable with jpackage...", "bright");
-    const distNativeDir = path.join(process.cwd(), "dist-native");
-
-    try {
-      if (fs.existsSync(distNativeDir)) {
-        fs.rmSync(distNativeDir, { recursive: true, force: true });
-      }
-
-      const userPackage = JSON.parse(
-        fs.readFileSync(path.join(process.cwd(), "package.json"), "utf-8")
+      // Step 3: Create native executable
+      log(
+        "\n  [3/3] 🚀  Creating native executable with jpackage...",
+        "bright"
       );
+      const distNativeDir = path.join(process.cwd(), "dist-native");
 
-      appName = userPackage.name || "CaffeineApp";
-      appVersion = userPackage.version || "1.0.0";
+      try {
+        if (fs.existsSync(distNativeDir)) {
+          fs.rmSync(distNativeDir, { recursive: true, force: true });
+        }
 
-      logInfo(`App name: ${appName}`);
-      logInfo(`App version: ${appVersion}`);
+        const userPackage = JSON.parse(
+          fs.readFileSync(path.join(process.cwd(), "package.json"), "utf-8")
+        );
 
-      const jpackageCmd = `jpackage --type app-image --name "${appName}" --input "${buildDir}" --main-jar "${prodJarName}" --main-class org.caffeine.app.Launcher --dest dist-native --app-version "${appVersion}"`;
+        appName = userPackage.name || "CaffeineApp";
+        appVersion = userPackage.version || "1.0.0";
 
-      log("Running jpackage...", "dim");
-      execSync(jpackageCmd, { stdio: "inherit" });
+        logInfo(`App name: ${appName}`);
+        logInfo(`App version: ${appVersion}`);
 
-      logSuccess("Native executable created");
-    } catch (error) {
-      logError(`Failed to create native executable: ${error.message}`);
-      logWarn("Make sure you have:");
-      logWarn("  - Java 21+ installed");
-      logWarn("  - jpackage available in PATH");
-      logWarn("  - All dependencies in package.json");
+        const jpackageCmd = `jpackage --type app-image --name "${appName}" --input "${buildDir}" --main-jar "${prodJarName}" --main-class org.caffeine.app.Launcher --dest dist-native --app-version "${appVersion}"`;
+
+        log("Running jpackage...", "dim");
+        execSync(jpackageCmd, { stdio: "inherit" });
+
+        logSuccess("Native executable created");
+      } catch (error) {
+        logError(`Failed to create native executable: ${error.message}`);
+        logWarn("Make sure you have:");
+        logWarn("  - Java 21+ installed");
+        logWarn("  - jpackage available in PATH");
+        logWarn("  - All dependencies in package.json");
+        process.exit(1);
+      }
+
+      log("\n", "reset");
+      logSuccess("Build completed successfully!");
+      log(`\n🎁 Your application is ready in:`, "bright");
+      log(`   dist-native/${appName}/bin/${appName}`, "cyan");
+      log("\n📦 To run your app:", "bright");
+      log(`   ./dist-native/${appName}/bin/${appName}`, "cyan");
+      log("\n", "reset");
+
+      break;
+
+    case "--version":
+      const packageJson = JSON.parse(
+        fs.readFileSync(path.join(__dirname, "package.json"), "utf-8")
+      );
+      log(`caffeine-cli v${packageJson.version}`, "cyan");
+      break;
+
+    case "--help":
+    case "-h":
+    case "help":
+    case undefined:
+      showHelp();
+      break;
+
+    default:
+      logError(`Unknown command: '${command}'`);
+      log("Use 'caffeine --help' for available commands", "yellow");
       process.exit(1);
-    }
-
-    log("\n", "reset");
-    logSuccess("Build completed successfully!");
-    log(`\n🎁 Your application is ready in:`, "bright");
-    log(`   dist-native/${appName}/bin/${appName}`, "cyan");
-    log("\n📦 To run your app:", "bright");
-    log(`   ./dist-native/${appName}/bin/${appName}`, "cyan");
-    log("\n", "reset");
-
-    break;
-
-  case "--version":
-    const packageJson = JSON.parse(
-      fs.readFileSync(path.join(__dirname, "package.json"), "utf-8")
-    );
-    log(`caffeine-cli v${packageJson.version}`, "cyan");
-    break;
-
-  case "--help":
-  case "-h":
-  case "help":
-  case undefined:
-    showHelp();
-    break;
-
-  default:
-    logError(`Unknown command: '${command}'`);
-    log("Use 'caffeine --help' for available commands", "yellow");
-    process.exit(1);
   }
 }
 

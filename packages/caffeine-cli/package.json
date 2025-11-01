@@ -1,6 +1,6 @@
 {
     "name": "caffeine-cli",
-    "version": "1.3.0",
+    "version": "1.3.1",
     "description": "Build desktop applications with Java 21 + JavaFX + HTML/CSS/JavaScript",
     "main": "index.js",
     "bin": {
@@ -36,7 +36,11 @@
     },
     "homepage": "https://github.com/Escobarq/Caffeine#readme",
     "dependencies": {
-        "chokidar": "^3.5.3"
+        "chokidar": "^3.5.3",
+        "chalk": "^4.1.2",
+        "cli-table3": "^0.6.3",
+        "ora": "^5.4.1",
+        "boxen": "^5.1.2"
     },
     "engines": {
         "node": ">=16.0.0"
