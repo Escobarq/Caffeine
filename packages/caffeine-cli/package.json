@@ -1,7 +1,7 @@
 {
     "name": "caffeine-cli",
-    "version": "1.3.3",
-    "description": "Build desktop applications with Java 21 + JavaFX + HTML/CSS/JavaScript",
+    "version": "0.4.0",
+    "description": "Build desktop applications with Java 21 + JavaFX + HTML/CSS/JS (Beta)",
     "main": "index.js",
     "bin": {
         "caffeine": "./index.js"
@@ -23,7 +23,8 @@
         "electron",
         "tauri",
         "cli",
-        "framework"
+        "framework",
+        "beta"
     ],
     "author": "Juan Escobar <jdescobar180@soy.sena.edu.co>",
     "license": "MIT",
