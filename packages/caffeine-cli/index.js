@@ -185,12 +185,7 @@ function getOptimalJVMArgs() {
   const platform = process.platform;
   const baseArgs = [
     "--enable-native-access=ALL-UNNAMED",
-    "--add-opens",
-    "javafx.controls/javafx.scene.control=ALL-UNNAMED",
-    "--add-opens",
-    "javafx.graphics/javafx.scene=ALL-UNNAMED",
-    "--add-opens",
-    "javafx.base/javafx.util=ALL-UNNAMED",
+    // Removed JavaFX specific --add-opens since they're embedded
   ];
 
   if (platform === "win32") {
@@ -202,8 +197,14 @@ function getOptimalJVMArgs() {
       "-Djava.awt.headless=false",
     ];
   } else if (platform === "linux") {
-    // Linux: Optimize for X11/Wayland
-    return [...baseArgs, "-Dprism.order=gtk", "-Djava.awt.headless=false"];
+    // Linux: Try different renderers and provide fallbacks
+    return [
+      ...baseArgs,
+      "-Dprism.order=sw,gtk",
+      "-Djava.awt.headless=false",
+      "-Dprism.verbose=true",
+      "-Dprism.allowhidpi=false",
+    ];
   } else {
     // macOS: Use native renderer
     return [...baseArgs, "-Dprism.order=es2,sw", "-Djava.awt.headless=false"];
