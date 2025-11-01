@@ -51,6 +51,235 @@ function logWarn(msg) {
   console.warn(`${colors.yellow}⚠️  ${msg}${colors.reset}`);
 }
 
+// --- System Diagnosis Functions ---
+async function checkCommand(command, args = ["--version"]) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, { stdio: "pipe" });
+    let output = "";
+
+    child.stdout.on("data", (data) => {
+      output += data.toString();
+    });
+
+    child.stderr.on("data", (data) => {
+      output += data.toString();
+    });
+
+    child.on("close", (code) => {
+      resolve({
+        available: code === 0,
+        version: code === 0 ? output.trim().split("\n")[0] : null,
+        error: code !== 0 ? output.trim() : null,
+      });
+    });
+
+    child.on("error", () => {
+      resolve({ available: false, version: null, error: "Command not found" });
+    });
+  });
+}
+
+async function checkJavaRequirements() {
+  const javaResult = await checkCommand("java", ["-version"]);
+  let javaOk = false;
+  let javaVersion = "Not found";
+
+  if (javaResult.available && javaResult.version) {
+    // Parse Java version from output like 'java version "21.0.1"'
+    const versionMatch = javaResult.version.match(/version "(\d+)\.?(\d*)/);
+    if (versionMatch) {
+      const majorVersion = parseInt(versionMatch[1]);
+      javaOk = majorVersion >= 21;
+      javaVersion = versionMatch[0].replace('version "', "").replace('"', "");
+    }
+  }
+
+  return { available: javaResult.available, ok: javaOk, version: javaVersion };
+}
+
+async function checkNodeRequirements() {
+  const nodeResult = await checkCommand("node", ["-v"]);
+  let nodeOk = false;
+  let nodeVersion = "Not found";
+
+  if (nodeResult.available && nodeResult.version) {
+    const versionMatch = nodeResult.version.match(/v(\d+)\.(\d+)/);
+    if (versionMatch) {
+      const majorVersion = parseInt(versionMatch[1]);
+      nodeOk = majorVersion >= 16;
+      nodeVersion = nodeResult.version;
+    }
+  }
+
+  return { available: nodeResult.available, ok: nodeOk, version: nodeVersion };
+}
+
+async function checkPlatformSpecificDeps() {
+  const platform = process.platform;
+  const checks = {};
+
+  if (platform === "win32") {
+    // Check for common Windows issues
+    checks.vcredist = {
+      name: "Visual C++ Redist",
+      status: "Unknown",
+      note: "Check manually",
+    };
+    checks.graphics = {
+      name: "Graphics Drivers",
+      status: "Unknown",
+      note: "Update recommended",
+    };
+  } else if (platform === "linux") {
+    // Check for GTK libraries
+    const gtkResult = await checkCommand("pkg-config", [
+      "--exists",
+      "gtk+-3.0",
+    ]);
+    checks.gtk = {
+      name: "GTK+ 3.0",
+      status: gtkResult.available ? "✅ Available" : "❌ Missing",
+      note: gtkResult.available ? "" : "Install: sudo apt install libgtk-3-dev",
+    };
+
+    const x11Result = await checkCommand("xset", ["q"]);
+    checks.display = {
+      name: "X11 Display",
+      status: x11Result.available ? "✅ Available" : "❌ Missing",
+      note: x11Result.available ? "" : "Check DISPLAY variable",
+    };
+  } else if (platform === "darwin") {
+    // Check for Xcode tools
+    const xcodeResult = await checkCommand("xcode-select", ["-p"]);
+    checks.xcode = {
+      name: "Xcode Tools",
+      status: xcodeResult.available ? "✅ Available" : "❌ Missing",
+      note: xcodeResult.available ? "" : "Install: xcode-select --install",
+    };
+  }
+
+  return checks;
+}
+
+function getOptimalJVMArgs() {
+  const platform = process.platform;
+  const baseArgs = [
+    "--enable-native-access=ALL-UNNAMED",
+    "--add-opens",
+    "javafx.controls/javafx.scene.control=ALL-UNNAMED",
+    "--add-opens",
+    "javafx.graphics/javafx.scene=ALL-UNNAMED",
+    "--add-opens",
+    "javafx.base/javafx.util=ALL-UNNAMED",
+  ];
+
+  if (platform === "win32") {
+    // Windows: Use software renderer as fallback
+    return [
+      ...baseArgs,
+      "-Dprism.order=sw,d3d",
+      "-Dprism.verbose=false",
+      "-Djava.awt.headless=false",
+    ];
+  } else if (platform === "linux") {
+    // Linux: Optimize for X11/Wayland
+    return [...baseArgs, "-Dprism.order=gtk", "-Djava.awt.headless=false"];
+  } else {
+    // macOS: Use native renderer
+    return [...baseArgs, "-Dprism.order=es2,sw", "-Djava.awt.headless=false"];
+  }
+}
+
+async function runDoctorCommand() {
+  log(`\n🏥 Caffeine System Diagnosis`, "cyan");
+  log(`Platform: ${process.platform} ${os.arch()}`, "dim");
+  log("", "reset");
+
+  // Check core requirements
+  log("Checking core requirements...", "bright");
+  const javaCheck = await checkJavaRequirements();
+  const nodeCheck = await checkNodeRequirements();
+  const jarExists = fs.existsSync(jarPath);
+
+  // Create requirements table
+  console.log(`
+╔════════════════════════════════════════════════════════════════════════════╗
+║                         SYSTEM REQUIREMENTS                                ║
+╠════════════════════════════════════════════════════════════════════════════╣`);
+
+  const javaStatus = javaCheck.ok
+    ? `${colors.green}✅ ${javaCheck.version}`
+    : `${colors.red}❌ ${javaCheck.version}`;
+  const nodeStatus = nodeCheck.ok
+    ? `${colors.green}✅ ${nodeCheck.version}`
+    : `${colors.red}❌ ${nodeCheck.version}`;
+  const jarStatus = jarExists
+    ? `${colors.green}✅ Found`
+    : `${colors.red}❌ Missing`;
+
+  console.log(
+    `║ Java 21+              │ ${javaStatus}${colors.reset}`.padEnd(87) + "║"
+  );
+  console.log(
+    `║ Node.js 16+           │ ${nodeStatus}${colors.reset}`.padEnd(87) + "║"
+  );
+  console.log(
+    `║ Caffeine JAR          │ ${jarStatus}${colors.reset}`.padEnd(87) + "║"
+  );
+
+  // Check platform-specific dependencies
+  log("\nChecking platform-specific dependencies...", "bright");
+  const platformDeps = await checkPlatformSpecificDeps();
+
+  if (Object.keys(platformDeps).length > 0) {
+    console.log(`╠════════════════════════════════════════════════════════════════════════════╣
+║                      PLATFORM DEPENDENCIES                                ║
+╠════════════════════════════════════════════════════════════════════════════╣`);
+
+    for (const [key, dep] of Object.entries(platformDeps)) {
+      console.log(
+        `║ ${dep.name.padEnd(19)} │ ${dep.status}${colors.reset}`.padEnd(87) +
+          "║"
+      );
+      if (dep.note) {
+        console.log(
+          `║   ${colors.dim}${dep.note}${colors.reset}`.padEnd(87) + "║"
+        );
+      }
+    }
+  }
+
+  // Show optimal JVM configuration
+  console.log(`╠════════════════════════════════════════════════════════════════════════════╣
+║                        OPTIMAL CONFIGURATION                              ║
+╚════════════════════════════════════════════════════════════════════════════╝`);
+
+  const jvmArgs = getOptimalJVMArgs();
+  log(`\nOptimal JVM args for ${process.platform}:`, "bright");
+  jvmArgs.forEach((arg) => {
+    log(`  ${arg}`, "dim");
+  });
+
+  // Overall status
+  const allGood = javaCheck.ok && nodeCheck.ok && jarExists;
+
+  if (allGood) {
+    logSuccess("\n🎉 System ready for Caffeine development!");
+    logInfo("You can start creating projects with: caffeine init my-app");
+  } else {
+    logWarn("\n⚠️  Some requirements need attention:");
+    if (!javaCheck.ok) logError("  • Install Java 21 or higher");
+    if (!nodeCheck.ok) logError("  • Install Node.js 16 or higher");
+    if (!jarExists)
+      logError("  • Reinstall caffeine-cli: npm install -g caffeine-cli");
+  }
+
+  log(
+    "\n📖 For more help: https://github.com/Escobarq/Caffeine#readme\n",
+    "dim"
+  );
+}
+
 // --- Help Text ---
 const helpText = `
 ${colors.bright}☕ Caffeine CLI - Build Desktop Apps with Java + Web${colors.reset}
@@ -62,6 +291,7 @@ ${colors.bright}Commands:${colors.reset}
   ${colors.cyan}init <name>${colors.reset}        Create a new Caffeine project
   ${colors.cyan}dev <path>${colors.reset}         Start development server
   ${colors.cyan}build${colors.reset}              Build for production
+  ${colors.cyan}doctor${colors.reset}             Check system requirements
   ${colors.cyan}--help${colors.reset}             Show this help message
   ${colors.cyan}--version${colors.reset}          Show version
 
@@ -69,6 +299,7 @@ ${colors.bright}Examples:${colors.reset}
   caffeine init my-app
   cd my-app
   caffeine dev frontend
+  caffeine doctor
   npm run build
 
 ${colors.bright}Documentation:${colors.reset}
@@ -201,22 +432,9 @@ function checkJar() {
 function runJava(javaArgs) {
   const actualJarPath = checkJar();
 
-  // JVM arguments for better compatibility, especially on Windows
-  const jvmArgs = [
-    // Fix JavaFX warnings and access issues
-    "--enable-native-access=ALL-UNNAMED",
-    "--add-opens", "javafx.controls/javafx.scene.control=ALL-UNNAMED",
-    "--add-opens", "javafx.graphics/javafx.scene=ALL-UNNAMED",
-    "--add-opens", "javafx.base/javafx.util=ALL-UNNAMED",
-    
-    // Graphics pipeline fallback for Windows
-    "-Dprism.order=sw",
-    "-Dprism.verbose=true",
-    "-Djava.awt.headless=false",
-    
-    // JAR file
-    "-jar", actualJarPath
-  ];
+  // Get optimal JVM arguments based on platform
+  const platformJvmArgs = getOptimalJVMArgs();
+  const jvmArgs = [...platformJvmArgs, "-jar", actualJarPath];
 
   log(`🚀 Starting Caffeine application...`, "cyan");
   log(`   Java: java`, "dim");
@@ -231,7 +449,7 @@ function runJava(javaArgs) {
   javaProcess.on("error", (err) => {
     logError(`Failed to start Java: ${err.message}`);
     logInfo("Make sure Java 21+ is installed: java -version");
-    
+
     // Specific error handling for Windows JavaFX issues
     if (process.platform === "win32") {
       logWarn("Windows JavaFX troubleshooting:");
@@ -240,7 +458,7 @@ function runJava(javaArgs) {
       logWarn("  3. Try running as administrator");
       logWarn("  4. Check Windows Display Settings");
     }
-    
+
     process.exit(1);
   });
 
@@ -249,12 +467,12 @@ function runJava(javaArgs) {
       logSuccess("Caffeine application closed successfully");
     } else if (code === 1) {
       logError(`Caffeine exited with code ${code}`);
-      
+
       // Specific guidance for JavaFX runtime errors
       logInfo("JavaFX Runtime Error - Possible solutions:");
       logInfo("  1. Update Java to latest version (21+)");
       logInfo("  2. Update graphics drivers");
-      
+
       if (process.platform === "win32") {
         logInfo("  3. Install Microsoft Visual C++ Redistributable");
         logInfo("  4. Run 'java -version' to verify Java installation");
@@ -265,7 +483,7 @@ function runJava(javaArgs) {
       } else if (process.platform === "darwin") {
         logInfo("  3. Update macOS and Xcode Command Line Tools");
       }
-      
+
       logInfo("  For more help: https://github.com/Escobarq/Caffeine/issues");
     } else {
       logError(`Caffeine exited with code ${code}`);
@@ -276,7 +494,8 @@ function runJava(javaArgs) {
 
 // --- Command Logic ---
 
-switch (command) {
+async function main() {
+  switch (command) {
   case "init":
     const projectName = args[1];
     if (!projectName) {
@@ -342,24 +561,11 @@ switch (command) {
 
       // Start Java process pointing to hot-reload server
       const actualJarPath = checkJar();
-      
-      // JVM arguments for better compatibility, especially on Windows
-      const jvmArgs = [
-        // Fix JavaFX warnings and access issues
-        "--enable-native-access=ALL-UNNAMED",
-        "--add-opens", "javafx.controls/javafx.scene.control=ALL-UNNAMED",
-        "--add-opens", "javafx.graphics/javafx.scene=ALL-UNNAMED",
-        "--add-opens", "javafx.base/javafx.util=ALL-UNNAMED",
-        
-        // Graphics pipeline fallback for Windows
-        "-Dprism.order=sw",
-        "-Dprism.verbose=true",
-        "-Djava.awt.headless=false",
-        
-        // JAR file
-        "-jar", actualJarPath
-      ];
-      
+
+      // Get optimal JVM arguments based on platform
+      const platformJvmArgs = getOptimalJVMArgs();
+      const jvmArgs = [...platformJvmArgs, "-jar", actualJarPath];
+
       log(`🚀 Starting Caffeine application...`, "cyan");
       log(`   Java: java`, "dim");
       log(`   JAR: ${path.basename(actualJarPath)}`, "dim");
@@ -416,7 +622,7 @@ switch (command) {
       javaProcess.on("error", (err) => {
         logError(`Failed to start Java: ${err.message}`);
         logInfo("Make sure Java 21+ is installed: java -version");
-        
+
         // Specific error handling for Windows JavaFX issues
         if (process.platform === "win32") {
           logWarn("Windows JavaFX troubleshooting:");
@@ -425,7 +631,7 @@ switch (command) {
           logWarn("  3. Try running as administrator");
           logWarn("  4. Check Windows Display Settings");
         }
-        
+
         server.close();
         process.exit(1);
       });
@@ -436,12 +642,12 @@ switch (command) {
           logSuccess("Caffeine application closed successfully");
         } else if (code === 1) {
           logError(`Caffeine exited with code ${code}`);
-          
+
           // Specific guidance for JavaFX runtime errors
           logInfo("JavaFX Runtime Error - Possible solutions:");
           logInfo("  1. Update Java to latest version (21+)");
           logInfo("  2. Update graphics drivers");
-          
+
           if (process.platform === "win32") {
             logInfo("  3. Install Microsoft Visual C++ Redistributable");
             logInfo("  4. Run 'java -version' to verify Java installation");
@@ -452,8 +658,10 @@ switch (command) {
           } else if (process.platform === "darwin") {
             logInfo("  3. Update macOS and Xcode Command Line Tools");
           }
-          
-          logInfo("  For more help: https://github.com/Escobarq/Caffeine/issues");
+
+          logInfo(
+            "  For more help: https://github.com/Escobarq/Caffeine/issues"
+          );
         } else if (code !== null) {
           logError(`Caffeine exited with code ${code}`);
         }
@@ -461,6 +669,10 @@ switch (command) {
       });
     });
 
+    break;
+
+  case "doctor":
+    await runDoctorCommand();
     break;
 
   case "build":
@@ -578,4 +790,11 @@ switch (command) {
     logError(`Unknown command: '${command}'`);
     log("Use 'caffeine --help' for available commands", "yellow");
     process.exit(1);
+  }
 }
+
+// Run main function
+main().catch((error) => {
+  logError(`Unexpected error: ${error.message}`);
+  process.exit(1);
+});
